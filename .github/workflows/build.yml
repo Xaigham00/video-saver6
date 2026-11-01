@@ -1,0 +1,54 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack project.zip
+        run: |
+          mkdir build
+          unzip -q project.zip -d build
+          if [ ! -f build/settings.gradle.kts ]; then
+            inner=$(find build -maxdepth 2 -name settings.gradle.kts -printf '%h\n' | head -n 1)
+            mv "$inner" build_inner && rm -rf build && mv build_inner build
+          fi
+          ls build
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: build
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp build/app/build/outputs/apk/debug/app-debug.apk VideoSaver.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VideoSaver-APK
+          path: VideoSaver.apk
+
+      - name: Publish release (direct APK download)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Video Saver build ${{ github.run_number }}
+          files: VideoSaver.apk
+          make_latest: true
